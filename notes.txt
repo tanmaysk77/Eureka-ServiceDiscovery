@@ -1,0 +1,340 @@
+API- GATEWAY
+so usually in real evironemnt we have all our microservies inside a single microservie envrionemnt/network and the client cannot access then directly like clinets cannot accounts,loans,cards
+There is always a firewall around the common ms i.e we call it as  API gateway server in our case it was "GSC" in verifone
+So GSC acts as a common entrypoint to all client taking care of logging, auditing, security etc
+
+
+Service Discovery & Microservice Registration :
+Challenges :
+1. How microservices localtes annother microservices (Service Discovery)
+In monolithic apps we have may do it by using diffrenct exposed endpoints or apis
+But in case of microservices we may keep destrorying old containers and creating new containers with a new IP
+so how to analysize and localate the change each time
+
+2. How do we add new service instance to the microservice network ?
+If a instance of accouts fails how will new instance will be brough up to ensure constant availablity(Service Registory)
+So this means ip of instances will be constanly changing
+So how new instance start accepting the client requests
+
+3. If in case of multiple instances of container how to divert the traffics(Load Balancing)
+--> when a ms account invokes loans how it will understand which instance of loans to use
+It should not happen always a sinlge instance in being invoked
+
+
+
+															103.
+														
+Traditional monolithic approach inside microservices communication
+
+So lets take accounts and loans only we have single microservice instances and accounts is dependent on the loans
+So Lonas will have a ip to which a DNS will be created and that will be used by account to communicate with loans
+What if we have multiple instances of loans ?
+So you have to map the working one and it is difficult to maintain this kind of scenaios as someone needs to keep working on it 														
+
+
+Microservices :
+So the containers keeps on changing so it is difficult to maintain records of active ip to map with the dns
+Because we have more traffic we need more instances of loans vise versa if traffic is less we will be reducing these instances accordingly
+Or if any instance is down replsce it with working instance is what we neeed to achieve in containerization
+DNS needs to be updated always with ative ips
+
+-	Refer What is load balancer and Issue with load Balancer -I and II
+	Definition :
+	
+In Spring Boot, a load balancer is a component that distributes incoming requests across multiple instances of a microservice to ensure that no single instance is overwhelmed. 
+This helps to achieve better performance, fault tolerance, and scalability.
+- 	Solution :- 												We are going to use service discovery and service Registry
+
+
+
+															104			
+So How will microservices locate and communicate with each each other in a network
+-> Using service registery and discovery
+Inside service registery it will maintain records of all the running instances of all the microservices 
+when a new instance is created it will be registered inside the registry and when terminated it is also actively removed
+The registery acknoledges that multiple instances of a  serice can be simultaneously active
+When a application needs to communicate with backing service it performs a lookup in the registery to determine the Ip
+If multiple instances are present it also performs a load balancing stratergies accordingly and distributes the work load
+
+Now how we communicate to these services so we have two types of service discovery 
+Client side
+Server side
+
+
+So communicating withe the backing services by locating them is complex for client as container instances have dynamically assigned IPs and these instances keep on chnage 
+And also the instacnes keep on increasing and decresing according to the traffic
+So to deal with this service registery and discovery a concept known as centralized severs is refereed		
+
+So what the concept we have to implement this service registery and discovery		
+- Centralized server :- Maintians the details of all runnin services , new ms responsibility to register theid address inside central server 
+- CentralizedServer also regulary expects heart beats from ms intances if not received it will asumme not good healt so delete
+- If ms is removed for shutdown so thier ips and address should be removed from central servers
+- So if any MS wants to communicate it will go to central server for so and so ip
+- This centrlaixed server itslef we call it as "service discovery layer"
+- So it will not maintain ips by itself 
+- Individual MS has to register themself in this
+- We can have multiple instances of service discovery nodes and if a new ip is added in any node it is communicated to rest nodes also using "Gossip protocol"
+- So only once client will hit service discovery layer and maintin the ips in cache for further requesting
+- But the Ips in serice keeps on changing so client will refresh cache every 10 15 secs to get the latesh list
+- This is how service Siscovery and registery works in a Microservice environment
+
+------------>Refere Service Discovery Image 
+
+
+
+													105	
+Client side Service Discovery and load balancing
+ 
+We will see the client side service discovery and load balancing	
+- So when service registery see the some client app Accounts is requesting to communicate to Loans  	
+- Service registery identifies muliplt instances and return multiple ips 
+- So not it is responsibility of client service to perorm a load balancing stratergy and invoke which instance to call in real time 	
+- Load balancing is distributing the workload across mutiple service instances and client will select one instance from it
+- This concept on client side of identifying the instance and making making request and receiving response is nothing but process of service discovery		
+eg round robin ,waitied round robin, least connections statery or custom algorithm
+
+													Disadvantages
+												
+Developers need to do more code												
+
+													when to use
+												
+If project has no budget to use kubernetes cluster they can go with client side service discovery pattern	
+
+		
+
+
+													How to implement	
+													
+Using Spring cloud features you get varrious approaches to implement this client side serice discovery	and registration
+1. Spring Cloud Netflix's Eureka service(Centailized server registery) :	service which will act as a service discovery server/agent	
+2. Spring cloud load balancer library for client side balancing	
+3. Netflix Feing clinet(To connect to the m/s) : to lookup for a service b/w microservices		
+
+
+													
+													Example :
+													
+												
+How Service Discovery Works:
+Registration with Eureka Server:
+
+Each microservice instance registers itself with the Eureka server by sending a registration request.
+The Eureka server adds the service instance to its registry, making it available for discovery by other services.
+Heartbeat Mechanism:
+
+Registered services send periodic heartbeats to the Eureka server to confirm that they are still active. If a service instance fails to send heartbeats within a specified time, the Eureka server considers it unavailable and removes it from the registry.
+Service Discovery by Client:
+
+When a microservice (like accounts) wants to communicate with another service (like loans), it queries the Eureka server for all instances of the loans service.
+The Eureka server returns the list of all available loans service instances.
+Client-Side Load Balancing:
+
+The client uses a load balancing algorithm to select one of the available instances from the list provided by the Eureka server.
+The client then sends the request to the selected instance.												
+
+
+
+														106
+-Created new project section 8 Copied Section 6 project folders to use h2 database removed all the rabbit mq from all .ymls and from pom.xml removed all the bus and monitor dependencies													
+-So we created a eureka server acting as a centralized server as a new project :
+-Created a project named eureka server added eureka server, config client and actuator dependencies in it and added	Section 8 now
+- Add @EurekaServer configuration to change the application from normla springbot to a aeureka server
+-Create a configuration file for euraka server and stored on the git 			
+	
+															eurekaserver.yml	(It in GIT)			
+
+server:
+  port: 8070
+
+eureka:
+  instance:
+    hostname: localhost
+  client:                                                                        
+    fetchRegistry: false                                                       # This is bydefault true we made it false as We do not want eureka to call any registered service 
+    registerWithEureka: false                                                  # We do not want to register eureka with itself in the registery
+    serviceUrl:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/    # Url for exposing to other services for resitering and for requesting a connect
+	 
+
+
+- Create a yml file in eureka project directory
+	 
+spring:
+  application:
+    name: "eurekaserver"                                         # this name is used by configuration server to get the config fle from git it should match with file name in git
+  config:                                                       # Need config server to include properties from configuration server
+    import: "optional:configserver:http://localhost:8071/"      # http://localhost:8071/eureka/default  --> on basis of active profile and application name get the configuration file from GIT
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  health:
+    readiness-state:
+      enabled: true
+    liveness-state:
+      enabled: true
+  endpoint:
+    health:
+      probes:
+        enabled: true	  
+	
+#    Eureka server will run on 8070 fetching the server port from configuration properties file
+#eurekaserver.yml
+#server:
+#  port: 8070	
+		
+	
+- Now run config Server to check proper setup of eureka configuration file is done or not	
+http://localhost:8071/eurekaserver/default
+
+
+- Now run the eureka server and run this url to check server details 
+http://localhost:8070/	 
+
+
+
+
+																	107
+															
+- So now in this lecture we are going to register accounts loans and cards in eureka after startup
+- So for it add eureka client dependency in pom.xml of accounts	
+- Add eureka properties in accounts.yml
+														
+		eureka:                                     # Register the client MS during startup
+		  instance:
+			preferIpAddress: true                   # Ip address for other microservices to locate the service
+		  client:
+			fetchRegistry: true                    # this client service will fetch the registery data
+			registerWithEureka: true              # This client service need to register with eurka
+			serviceUrl:
+			  defaultZone: http://localhost:8070/eureka/         # Service url of eureka server use to register
+
+
+		# Info is used for service registered in the eureka server
+		info:
+		  app:
+			name: "accounts"
+			description: "Eazy Bank Accounts Application"
+			version: "1.0.0"																
+											
+									
+- Now run accouts application (Be sure that confi and eureka servers are running first)
+- On http://localhost:8070/ check accounts service is registered on the eureka server  														
+									
+									
+									
+																	109s
+So in previous lec we started our microservices at at startup they got registed inside the eureka server																
+We will shut down our application gracefully using shut down apis we are not going to do that throgh the intellije ide baicllay
+So just run shut down api from accounts, loans, cards so they we perform their reminaing task if any and shut down gracefully
+And on shut down the microservice will be removed from the eureka server registery 
+
+
+																	111
+																
+- Lets see how client side load balancing works and service discovery and how we can communicate with the other microservices (Feign client)
+- So first include feing client dependency in pom.xml of accounts
+- @EnableFeignClient annotaiton is added on accountsApplication	to make use feign client	
+- Now we will make interfaces specific to microservices like CardsFeignClient which will have abstract methods specific to microservices methods in controllers
+- The arugements and return  type in feign interface abstract method should match with actual methods in microservices of cards and loans controller 
+
+
+																	112
+Created a nw controller to accept request to return customer acccount card and loans data toether
+Create a new service interface 
+Create a new CustomerDetails DTO that will be required to return acccount card and loans data combined
+We mill make implementation class of interface service 
+In this we will be getting customer and account data and we will be invoking feign clinet method by providing mobile nimber to get the cards and loans data 
+So this way we get all data	throgha new api
+
+To run project :- 
+1. Ru config later eureka, then all mircoservices
+2. Hit Customer Details Api in accounts section in postman				
+
+																		
+																	113
+How eureka handles the case if a microservice is facing some snetwork issue and no heart beats so will it remove the instances straight away
+No eureka will wait for 90 secs if multiple instances are down 																	
+ 													
+													
+																	114
+																
+Creating docker image files for all the services
+First add jib plugin in eureka and from all pom.xml update the tag to s8
+Also add all the images to the hub					
+
+Command to pus images to Hub
+>docker image push docker.io/tanmaysk/configserver:s8			
+
+
+																	115
+Updated Dcker compose up file																	
+
+
+																	116
+																
+We ran docker compose up files
+We ran all services first config then eureka then all other
+We are using feign client inside accounts to call loans and cards
+Feign client will leverage the eureka server to connect with instance of loans and cards inside from accounts 																
+
+
+
+																	117 
+																	
+																	
+- So we will be creating 2 instances of loans miocroservice and see the load balancing from client side 
+- So for it I will be adding a new instance details in docker compose up file for default profile
+  loans:
+    image: "tanmaysk/loans:s8"
+    container_name: loans-ms
+    ports:
+      - "8090:8090"														# continer is exposing on port to 8091
+    depends_on:
+      configserver:
+        condition: service_healthy
+      eurekaserver:
+        condition: service_healthy
+    environment:
+      SPRING_APPLICATION_NAME: "loans"
+    extends:
+      file: common-config.yml
+      service: microservice-eureka-config
+
+  loans1:																# change the name of the service 
+    image: "tanmaysk/loans:s8"
+    container_name: loans-ms1											# change the name of the container
+    ports:
+      - "8091:8090"														# continer is exposing on port to 8091
+    depends_on:
+      configserver:
+        condition: service_healthy
+      eurekaserver:
+        condition: service_healthy
+    environment:
+      SPRING_APPLICATION_NAME: "loans"
+    extends:
+      file: common-config.yml
+      service: microservice-eureka-config				
+
+
+
+																118 
+															
+How we identify load balancing	in loans case	
+So i create account, cards and for loans i have created the record on port exposed on 8090 and not 8090 of loans
+so each container has seperate h2 database so when i inove customer details api sometimes it will call 8090 and sometime 8091 instance of loans
+So in case when 8091 is called at the time of load balancing on client side we will get error as loans service on 8091 will not have recors in its h2 database
+And sometime we will get the response when 8090 is called 													
+
+
+This response we are getting in case when 8091 instance is called
+{
+    "apiPath": "uri=/api/fetchCustomerDetails",
+    "errorCode": "INTERNAL_SERVER_ERROR",
+    "errorMessage": "[404] during [GET] to [http://loans/api/fetch?mobileNumber=9881222339] [LoansFeignClient#fetchLoanDetails(String)]: [{\"apiPath\":\"uri=/api/fetch\",\"errorCode\":\"NOT_FOUND\",\"errorMessage\":\"Loan not found with the given input data mobileNumber : '9881222339'\",\"errorTime\":\"2024-08-18T06:23:06.03171196\"}]",
+    "errorTime": "2024-08-18T06:23:06.130515103"
+}
